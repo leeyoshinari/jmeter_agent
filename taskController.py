@@ -35,7 +35,6 @@ class Task(object):
         self.redis_port = 6379
         self.redis_password = '123456'
         self.redis_db = 0
-        # self.key_expire = 604800
         self.get_configure_from_server()
 
         self.jmeter_path = get_config('jmeterPath')
@@ -58,14 +57,17 @@ class Task(object):
     def check_env(self):
         if not os.path.exists(self.jmeter_path):
             logger.error(f'The Jmeter path: {self.jmeter_path} is not exist ~')
+            raise Exception(f'The Jmeter path: {self.jmeter_path} is not exist ~')
 
         res = os.popen(f'{self.jmeter_executor} -v').read()
         if 'Copyright' not in res:
-            logger.error(f'Not Found JMeter ~')
+            logger.error(f'Not Found {self.jmeter_executor} ~')
+            raise Exception(f'Not Found {self.jmeter_executor} ~')
 
         res = os.popen('whereis java').read()
         if len(res) < 10:
             logger.error('Not Found Java ~')
+            raise Exception('Not Found Java ~')
 
         if not os.path.exists(self.file_path):
             os.mkdir(self.file_path)
@@ -107,7 +109,7 @@ class Task(object):
         while True:
             try:
                 res = self.request_post(url, post_data)
-                logger.info(f"The result of registration is {res.content.decode('unicode_escape')}")
+                logger.debug(f"The result of registration is {res.content.decode('unicode_escape')}")
                 if res.status_code == 200:
                     response_data = json.loads(res.content.decode('unicode_escape'))
                     if response_data['code'] == 0:
@@ -120,7 +122,6 @@ class Task(object):
                         self.redis_port = response_data['data']['redis']['port']
                         self.redis_password = response_data['data']['redis']['password']
                         self.redis_db = response_data['data']['redis']['db']
-                        self.key_expire =response_data['data']['key_expire']
                         break
 
                 time.sleep(1)
