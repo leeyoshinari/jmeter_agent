@@ -253,12 +253,12 @@ class Task(object):
 
     def write_to_redis(self, data):
         total_num = len(self.redis_client.keys(self.task_id + '_host_*'))
-        if self.redis_client.llen(self.task_key) == total_num:
+        if self.redis_client.llen(self.task_key) >= total_num:
             res = self.redis_client.lrange(self.task_key, 0, total_num - 1)
             self.redis_client.ltrim(self.task_key, total_num + 1, total_num + 1)  # remove all
             self.write_to_influx(res)
         _ = self.redis_client.lpush(self.task_key, str(data))
-        if self.redis_client.llen(self.task_key) == total_num:
+        if self.redis_client.llen(self.task_key) >= total_num:
             res = self.redis_client.lrange(self.task_key, 0, total_num - 1)
             self.redis_client.ltrim(self.task_key, total_num + 1, total_num + 1)  # remove all
             self.write_to_influx(res)
