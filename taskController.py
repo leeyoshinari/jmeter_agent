@@ -98,7 +98,7 @@ class Task(object):
 
 
     def get_configure_from_server(self):
-        url = f'http://{get_config("address")}/performance/task/register'
+        url = f'http://{get_config("address")}/performance/task/register/first'
         post_data = {
             'host': self.IP,
             'port': get_config('port'),
