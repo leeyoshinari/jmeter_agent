@@ -5,6 +5,7 @@ import os
 import re
 import time
 import json
+import random
 import threading
 import traceback
 import requests
@@ -354,27 +355,27 @@ class Task(object):
         if flag == 1:
             _ = self.send_message('run_task', flag)
 
-    def stop_task(self, task_id):
+    def stop_task(self):
         flag = 1  # 0-stop task fail, 1-stop task success
         if self.check_status(is_run=True):
             try:
                 self.kill_process()
-                time.sleep(2)
+                time.sleep(random.randint(100, 400) / 100)
                 if self.check_status(is_run=False):
                     self.status = 0
                     self.current_tps = 0
                     self.number_samples = 1
                     flag = 1
                     del self.redis_client, self.influx_client
-                    logger.info(f'task {task_id} stop successful ~')
+                    logger.info('Task stop successful ~')
                 else:
-                    logger.error(f'task {task_id} stop failure ~')
+                    logger.error('Task stop failure ~')
                     return False
             except:
                 logger.error(traceback.format_exc())
                 return False
         else:
-            logger.error(f'task {task_id} has stopped ~')
+            logger.error('Task has stopped ~')
 
         if self.send_message('stop_task', flag):
             return True
