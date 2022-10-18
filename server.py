@@ -56,10 +56,11 @@ async def change_tps(request):
     """
     try:
         data = await request.json()
-        task_id = data.get('taskId')
+        # task_id = data.get('taskId')
         tps = data.get('tps')
-        res = task.change_TPS(tps)
-        return web.json_response(res)
+        # res = task.change_TPS(tps)
+        task.start_thread(task.change_TPS, (tps,))
+        return web.json_response({'code': 0, 'msg': 'Change TPS successful ~'})
     except Exception:
         logger.error(traceback.format_exc())
         return web.json_response({'code': 1, 'msg': 'Change TPS failure ~'})
