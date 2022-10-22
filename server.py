@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 # Author: leeyoshinari
 import os
-import time
 import asyncio
 import traceback
 from aiohttp import web
@@ -11,6 +10,9 @@ from taskController import Task
 
 HOST = get_ip()
 task = Task()
+PID = os.getpid()
+with open('pid', 'w', encoding='utf-8') as f:
+    f.write(PID)
 
 
 async def index(request):
