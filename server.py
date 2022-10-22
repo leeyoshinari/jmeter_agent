@@ -12,7 +12,7 @@ HOST = get_ip()
 task = Task()
 PID = os.getpid()
 with open('pid', 'w', encoding='utf-8') as f:
-    f.write(PID)
+    f.write(str(PID))
 
 
 async def index(request):
