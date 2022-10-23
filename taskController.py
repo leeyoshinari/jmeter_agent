@@ -36,9 +36,10 @@ class Task(object):
         self.redis_port = 6379
         self.redis_password = '123456'
         self.redis_db = 0
+        self.deploy_path = ''
         self.get_configure_from_server()
 
-        self.jmeter_path = get_config('jmeterPath')
+        self.jmeter_path = os.path.join(self.deploy_path, 'JMeter')
         self.jmeter_executor = os.path.join(self.jmeter_path, 'bin', 'jmeter')
         self.setprop_path = os.path.join(self.jmeter_path, 'setprop.bsh')
         self.file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results')
@@ -123,6 +124,7 @@ class Task(object):
                         self.redis_port = response_data['data']['redis']['port']
                         self.redis_password = response_data['data']['redis']['password']
                         self.redis_db = response_data['data']['redis']['db']
+                        self.deploy_path = response_data['data']['deploy_path']
                         break
 
                 time.sleep(1)
@@ -170,7 +172,7 @@ class Task(object):
             stop_time += 600
         while self.status == 1:
             if stop_time < time.time():
-                self.stop_task(self.task_id)
+                self.stop_task()
             else:
                 time.sleep(1)
 
@@ -229,7 +231,7 @@ class Task(object):
                                             'min_rt': data[3], 'max_rt': data[4], 'err': data[5], 'active': data[6]}}]
                         self.influx_client.write_points(lines)  # write to database
                         if res[-1] == '0':
-                            self.start_thread(self.stop_task, (self.task_id,))
+                            self.start_thread(self.stop_task, ())
                             break
                         index += 1
                         last_time = time.time()
@@ -241,7 +243,7 @@ class Task(object):
                     self.status = 0
 
                 if self.status == 0:
-                    self.start_thread(self.stop_task, (self.task_id,))
+                    self.start_thread(self.stop_task, ())
                     break
 
                 cur_position = f1.tell()  # 记录上次读取文件的位置
