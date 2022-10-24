@@ -429,12 +429,3 @@ class Task(object):
         res = requests.post(url=url, json=post_data, headers=header)
         logger.debug(url)
         return res
-
-if __name__ == '__main__':
-    RedisHost = '101.200.52.208'
-    RedisPort = 6369
-    RedisPassword = 'leeyoshi'
-    RedisDB = 1
-    r = redis.Redis(host=RedisHost, port=RedisPort, password=RedisPassword, db=RedisDB, decode_responses=True)
-    print(r.get('123'))
-
