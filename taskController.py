@@ -100,12 +100,11 @@ class Task(object):
 
 
     def get_configure_from_server(self):
-        url = f'http://{get_config("address")}/performance/task/register/first'
+        url = f'http://{get_config("address")}/register'
         post_data = {
+            'type': 'jmeter-agent',
             'host': self.IP,
-            'port': get_config('port'),
-            'status': self.status,
-            'tps': self.current_tps
+            'port': get_config('port')
         }
 
         while True:
@@ -134,7 +133,7 @@ class Task(object):
                 time.sleep(1)
 
     def register(self):
-        url = f'http://{get_config("address")}/performance/task/register'
+        url = f'http://{get_config("address")}/redis/write'
         while True:
             post_data = {
                 'host': self.IP,
@@ -142,7 +141,7 @@ class Task(object):
                 'status': self.status,
                 'tps': self.current_tps
             }
-            res = self.request_post(url, post_data)
+            res = self.request_post(url, {'data': ['jmeterServer_' + self.IP, json.dumps(post_data, ensure_ascii=False), 12]})
             logger.info(f"Agent register successful, status code is {res.status_code}, status: {self.status}, TPS: {self.current_tps}")
             time.sleep(9)
 
@@ -178,7 +177,7 @@ class Task(object):
 
     def send_message(self, task_type, flag):
         try:
-            url = f'http://{get_config("address")}/performance/task/register/getMessage'
+            url = f'http://{get_config("address")}/setMessage'
             post_data = {
                 'host': self.IP,
                 'taskId': self.task_id,
