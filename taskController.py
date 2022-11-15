@@ -42,7 +42,8 @@ class Task(object):
         self.jmeter_path = os.path.join(self.deploy_path, 'JMeter')
         self.jmeter_executor = os.path.join(self.jmeter_path, 'bin', 'jmeter')
         self.setprop_path = os.path.join(self.jmeter_path, 'setprop.bsh')
-        self.file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results')
+        # self.file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results')
+        self.file_path = 'results'
 
         self.influx_client = None
         self.redis_client = None
@@ -376,6 +377,10 @@ class Task(object):
                 logger.error(traceback.format_exc())
                 return False
         else:
+            self.status = 0
+            self.current_tps = 0
+            self.number_samples = 1
+            flag = 1
             logger.error('Task has stopped ~')
 
         if self.send_message('stop_task', flag):
@@ -386,6 +391,7 @@ class Task(object):
     def kill_process(self):
         try:
             res = os.popen("ps -ef|grep jmeter |grep -v grep |awk '{print $2}' |xargs kill -9").read()
+            res = os.popen("ps -ef|grep java |grep -v grep |grep jmx |awk '{print $2}' |xargs kill -9").read()
         except:
             logger.error(traceback.format_exc())
 
