@@ -38,7 +38,7 @@ class Task(object):
         self.jmeter_executor = os.path.join(self.jmeter_path, 'bin', 'jmeter')
         self.setprop_path = os.path.join(self.jmeter_path, 'setprop.bsh')
         # self.file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results')
-        self.file_path = 'results'
+        self.file_path = os.path.join(self.deploy_path, 'jmeter_agent', 'results')
 
         self.redis_client = None
 
