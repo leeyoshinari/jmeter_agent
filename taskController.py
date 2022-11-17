@@ -11,7 +11,6 @@ import traceback
 import requests
 import redis
 import zipfile
-import influxdb
 from common import get_config, logger, get_ip, toTimeStamp
 
 bean_shell_server_port = 15225
@@ -26,12 +25,8 @@ class Task(object):
         self.plan_id = None
         self.number_samples = 1
         self.start_time = 0
+        self.influx_post_url = f'http://{get_config("address")}/influx/write'
         self.pattern = 'summary\+(\d+)in.*=(\d+.\d+)/sAvg:(\d+)Min:(\d+)Max:(\d+)Err:(\d+)\(.*Active:(\d+)Started'
-        self.influx_host = '127.0.0.1'
-        self.influx_port = 8086
-        self.influx_username = 'root'
-        self.influx_password = '123456'
-        self.influx_database = 'test'
         self.redis_host = '127.0.0.1'
         self.redis_port = 6379
         self.redis_password = '123456'
@@ -45,7 +40,6 @@ class Task(object):
         # self.file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results')
         self.file_path = 'results'
 
-        self.influx_client = None
         self.redis_client = None
 
         self.check_env()
@@ -115,11 +109,6 @@ class Task(object):
                 if res.status_code == 200:
                     response_data = json.loads(res.content.decode('unicode_escape'))
                     if response_data['code'] == 0:
-                        self.influx_host = response_data['data']['influx']['host']
-                        self.influx_port = response_data['data']['influx']['port']
-                        self.influx_username = response_data['data']['influx']['username']
-                        self.influx_password = response_data['data']['influx']['password']
-                        self.influx_database = response_data['data']['influx']['database']
                         self.redis_host = response_data['data']['redis']['host']
                         self.redis_port = response_data['data']['redis']['port']
                         self.redis_password = response_data['data']['redis']['password']
@@ -145,10 +134,6 @@ class Task(object):
             res = self.request_post(url, {'data': ['jmeterServer_' + self.IP, json.dumps(post_data, ensure_ascii=False), 12]})
             logger.info(f"Agent register successful, status code is {res.status_code}, status: {self.status}, TPS: {self.current_tps}")
             time.sleep(9)
-
-    def connect_influx(self):
-        self.influx_client = influxdb.InfluxDBClient(self.influx_host, self.influx_port, self.influx_username,
-                                                     self.influx_password, self.influx_database)
 
     def connect_redis(self):
         self.redis_client = redis.Redis(host=self.redis_host, port=self.redis_port, password=self.redis_password,
@@ -204,42 +189,38 @@ class Task(object):
                  'tags': {'task': str(self.task_id), 'host': 'all'},
                  'fields': {'c_time': time.strftime("%Y-%m-%d %H:%M:%S"), 'samples': data[0], 'tps': data[1],
                             'avg_rt': data[2], 'min_rt': data[3], 'max_rt': data[4], 'err': data[5], 'active': data[6]}}]
-        self.influx_client.write_points(line)  # write to database
+        _ = self.request_post(self.influx_post_url, {'data': line})
 
     def parse_log(self, log_path):
         while not os.path.exists(log_path):
             time.sleep(0.5)
 
         position = 0
-        index = 0
         with open(log_path, mode='r', encoding='utf-8') as f1:
             while True:
                 line = f1.readline().strip()
                 if 'Summariser: summary +' in line:
                     logger.info(f'JMeter run log - {self.task_id} - {line}')
-                    if index > 1:   # 前两次结果不写入，等待summary输出频率稳定
-                        self.redis_client.set(f'{self.task_id}_host_{self.IP}', 1, ex=30)
-                        c_time = line.split(',')[0].strip()
-                        res = re.findall(self.pattern, line.replace(' ', ''))[0]
-                        logger.debug(res)
-                        self.current_tps = res[1]
-                        data = list(map(float, res))
-                        self.write_to_redis(data)
-                        lines = [{'measurement': 'performance_jmeter_task',
-                                 'tags': {'task': str(self.task_id), 'host': self.IP},
-                                 'fields': {'c_time': c_time, 'samples': data[0], 'tps': data[1], 'avg_rt': data[2],
-                                            'min_rt': data[3], 'max_rt': data[4], 'err': data[5], 'active': data[6]}}]
-                        self.influx_client.write_points(lines)  # write to database
-                        if res[-1] == '0':
-                            self.start_thread(self.stop_task, ())
-                            break
-                        index += 1
-                        last_time = time.time()
-                    else:
-                        self.change_init_TPS()
-                        index += 1
+                    self.redis_client.set(f'{self.task_id}_host_{self.IP}', 1, ex=20)
+                    c_time = line.split(',')[0].strip()
+                    res = re.findall(self.pattern, line.replace(' ', ''))[0]
+                    logger.debug(res)
+                    self.current_tps = res[1]
+                    data = list(map(float, res))
+                    self.write_to_redis(data)
+                    lines = [{'measurement': 'performance_jmeter_task',
+                             'tags': {'task': str(self.task_id), 'host': self.IP},
+                             'fields': {'c_time': c_time, 'samples': data[0], 'tps': data[1], 'avg_rt': data[2],
+                                        'min_rt': data[3], 'max_rt': data[4], 'err': data[5], 'active': data[6]}}]
+                    _ = self.request_post(self.influx_post_url, {'data': lines})
+                    if res[-1] == '0':
+                        self.start_thread(self.stop_task, ())
+                        break
+                    last_time = time.time()
+                else:
+                    self.change_init_TPS()
 
-                if index > 10 and time.time() - last_time > 300:
+                if time.time() - last_time > 300:
                     self.status = 0
 
                 if self.status == 0:
@@ -266,15 +247,6 @@ class Task(object):
             self.redis_client.ltrim(self.task_key, total_num + 1, total_num + 1)  # remove all
             self.write_to_influx(res)
         self.redis_client.expire(self.task_key, 300)
-
-    def save_file(self, files):
-        pass
-
-    def upload_file_by_path(self, file_path):
-        pass
-
-    def upload_file_by_bytes(self, file_bytes):
-        pass
 
     def download_log(self, task_id):
         jtl_path = os.path.join(self.file_path, task_id, task_id + '.jtl')
@@ -314,7 +286,6 @@ class Task(object):
         #flag = 0    # 0-run task fail, 1-run task success
         try:
             self.connect_redis()
-            self.connect_influx()
             local_file_path = os.path.join(self.file_path, task_id + '.zip')
             target_file_path = os.path.join(self.file_path, task_id)
             self.download_file_to_path(data.get('filePath'), local_file_path)
@@ -368,7 +339,7 @@ class Task(object):
                     self.current_tps = 0
                     self.number_samples = 1
                     flag = 1
-                    del self.redis_client, self.influx_client
+                    del self.redis_client
                     logger.info('Task stop successful ~')
                 else:
                     logger.error('Task stop failure ~')
@@ -431,6 +402,9 @@ class Task(object):
             "Accept": "application/json, text/plain, */*",
             "Accept-Encoding": "gzip, deflate",
             "Content-Type": "application/json; charset=UTF-8"}
-        res = requests.post(url=url, json=post_data, headers=header)
-        logger.debug(url)
-        return res
+        try:
+            res = requests.post(url=url, json=post_data, headers=header)
+            logger.debug(f"The result of request is {res.content.decode('unicode_escape')}")
+            return res
+        except:
+            raise
