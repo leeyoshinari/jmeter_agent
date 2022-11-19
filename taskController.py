@@ -181,10 +181,12 @@ class Task(object):
             time.sleep(0.5)
 
         position = 0
+        last_time = time.time()
+        logger.info(f'JMeter log path is {log_path}')
         with open(log_path, mode='r', encoding='utf-8') as f1:
             while True:
                 line = f1.readline().strip()
-                if 'Summariser: summary +' in line:
+                if 'Summariser:' in line and '+' in line:
                     logger.info(f'JMeter run log - {self.task_id} - {line}')
                     _  = self.request_post(self.redis_post_url, {'data': [f'{self.task_id}_host_{self.IP}', 1, 20]})
                     c_time = line.split(',')[0].strip()
@@ -200,10 +202,7 @@ class Task(object):
                     _ = self.request_post(self.data_write_url, post_data)
                     if res[-1] == '0':
                         self.start_thread(self.stop_task, ())
-                        break
                     last_time = time.time()
-                else:
-                    self.change_init_TPS()
 
                 if time.time() - last_time > 300:
                     self.status = 0
