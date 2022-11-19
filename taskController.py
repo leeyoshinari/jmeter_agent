@@ -9,7 +9,6 @@ import random
 import threading
 import traceback
 import requests
-import redis
 import zipfile
 from common import get_config, logger, get_ip, toTimeStamp
 
@@ -25,7 +24,9 @@ class Task(object):
         self.plan_id = None
         self.number_samples = 1
         self.start_time = 0
-        self.influx_post_url = f'http://{get_config("address")}/influx/write'
+        self.redis_post_url = f'http://{get_config("address")}/redis/write'
+        self.data_write_url = f'http://{get_config("address")}/jmeter/agent/write'
+        self.redis_get_url = f'http://{get_config("address")}/redis/get/keys/'
         self.pattern = 'summary\+(\d+)in.*=(\d+.\d+)/sAvg:(\d+)Min:(\d+)Max:(\d+)Err:(\d+)\(.*Active:(\d+)Started'
         self.redis_host = '127.0.0.1'
         self.redis_port = 6379
@@ -37,10 +38,7 @@ class Task(object):
         self.jmeter_path = os.path.join(self.deploy_path, 'JMeter')
         self.jmeter_executor = os.path.join(self.jmeter_path, 'bin', 'jmeter')
         self.setprop_path = os.path.join(self.jmeter_path, 'setprop.bsh')
-        # self.file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results')
         self.file_path = os.path.join(self.deploy_path, 'jmeter_agent', 'results')
-
-        self.redis_client = None
 
         self.check_env()
         self.write_setprop()
@@ -135,10 +133,6 @@ class Task(object):
             logger.info(f"Agent register successful, status code is {res.status_code}, status: {self.status}, TPS: {self.current_tps}")
             time.sleep(9)
 
-    def connect_redis(self):
-        self.redis_client = redis.Redis(host=self.redis_host, port=self.redis_port, password=self.redis_password,
-                                        db=self.redis_db, decode_responses=True)
-
     def check_status(self, is_run=True):
         try:
             res = os.popen('ps -ef|grep jmeter |grep -v grep').readlines()
@@ -182,15 +176,6 @@ class Task(object):
             logger.error("Send message failure ~")
             return False
 
-    def write_to_influx(self, datas):
-        d = [json.loads(r) for r in datas]
-        data = [sum(r) for r in zip(*d)]
-        line = [{'measurement': 'performance_jmeter_task',
-                 'tags': {'task': str(self.task_id), 'host': 'all'},
-                 'fields': {'c_time': time.strftime("%Y-%m-%d %H:%M:%S"), 'samples': data[0], 'tps': data[1],
-                            'avg_rt': data[2], 'min_rt': data[3], 'max_rt': data[4], 'err': data[5], 'active': data[6]}}]
-        _ = self.request_post(self.influx_post_url, {'data': line})
-
     def parse_log(self, log_path):
         while not os.path.exists(log_path):
             time.sleep(0.5)
@@ -201,18 +186,18 @@ class Task(object):
                 line = f1.readline().strip()
                 if 'Summariser: summary +' in line:
                     logger.info(f'JMeter run log - {self.task_id} - {line}')
-                    self.redis_client.set(f'{self.task_id}_host_{self.IP}', 1, ex=20)
+                    _  = self.request_post(self.redis_post_url, {'data': [f'{self.task_id}_host_{self.IP}', 1, 20]})
                     c_time = line.split(',')[0].strip()
                     res = re.findall(self.pattern, line.replace(' ', ''))[0]
                     logger.debug(res)
                     self.current_tps = res[1]
                     data = list(map(float, res))
-                    self.write_to_redis(data)
                     lines = [{'measurement': 'performance_jmeter_task',
                              'tags': {'task': str(self.task_id), 'host': self.IP},
                              'fields': {'c_time': c_time, 'samples': data[0], 'tps': data[1], 'avg_rt': data[2],
                                         'min_rt': data[3], 'max_rt': data[4], 'err': data[5], 'active': data[6]}}]
-                    _ = self.request_post(self.influx_post_url, {'data': lines})
+                    post_data = {'num_key': self.task_id + '_host_*', 'data_key': self.task_key, 'redis': data, 'influx': lines}
+                    _ = self.request_post(self.data_write_url, post_data)
                     if res[-1] == '0':
                         self.start_thread(self.stop_task, ())
                         break
@@ -234,19 +219,6 @@ class Task(object):
                 else:
                     position = cur_position
                     time.sleep(0.2)
-
-    def write_to_redis(self, data):
-        total_num = len(self.redis_client.keys(self.task_id + '_host_*'))
-        if self.redis_client.llen(self.task_key) >= total_num:
-            res = self.redis_client.lrange(self.task_key, 0, total_num - 1)
-            self.redis_client.ltrim(self.task_key, total_num + 1, total_num + 1)  # remove all
-            self.write_to_influx(res)
-        _ = self.redis_client.lpush(self.task_key, str(data))
-        if self.redis_client.llen(self.task_key) >= total_num:
-            res = self.redis_client.lrange(self.task_key, 0, total_num - 1)
-            self.redis_client.ltrim(self.task_key, total_num + 1, total_num + 1)  # remove all
-            self.write_to_influx(res)
-        self.redis_client.expire(self.task_key, 300)
 
     def download_log(self, task_id):
         jtl_path = os.path.join(self.file_path, task_id, task_id + '.jtl')
@@ -285,7 +257,6 @@ class Task(object):
         task_id = data.get('taskId')
         #flag = 0    # 0-run task fail, 1-run task success
         try:
-            self.connect_redis()
             local_file_path = os.path.join(self.file_path, task_id + '.zip')
             target_file_path = os.path.join(self.file_path, task_id)
             self.download_file_to_path(data.get('filePath'), local_file_path)
@@ -309,7 +280,7 @@ class Task(object):
             time.sleep(5)
             if self.check_status(is_run=True):
                 self.status = 1
-                self.task_id = task_id
+                self.task_id = str(task_id)
                 self.task_key = f"task_{task_id}"
                 self.number_samples = data.get('numberSamples')
                 self.start_time = time.time()
@@ -339,7 +310,6 @@ class Task(object):
                     self.current_tps = 0
                     self.number_samples = 1
                     flag = 1
-                    del self.redis_client
                     logger.info('Task stop successful ~')
                 else:
                     logger.error('Task stop failure ~')
@@ -384,7 +354,7 @@ class Task(object):
         while scheduler:
             s = scheduler[0]
             if s['timing'] < time.time():
-                _ = self.change_TPS(int(target_num * self.number_samples * s['value'] * 0.6 / len(self.redis_client.keys(self.task_id + '_host_*'))))
+                _ = self.change_TPS(int(target_num * self.number_samples * s['value'] * 0.6 / int(self.request_get(self.redis_get_url + self.task_id + '_host_*/1'))))
                 scheduler.pop(0)
             time.sleep(0.1)
         logger.info(f'Task {self.task_id} auto change TPS is completed ~')
@@ -406,5 +376,18 @@ class Task(object):
             res = requests.post(url=url, json=post_data, headers=header)
             logger.debug(f"The result of request is {res.content.decode('unicode_escape')}")
             return res
+        except:
+            raise
+
+    def request_get(self, url):
+        try:
+            res = requests.get(url=url)
+            logger.debug(f"The result of request is {res.content.decode('unicode_escape')}")
+            response = json.loads(res.content.decode())
+            if response['code'] == 0:
+                return response['data']
+            else:
+                logger.error(response['msg'])
+                return None
         except:
             raise
