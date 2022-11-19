@@ -123,14 +123,17 @@ class Task(object):
     def register(self):
         url = f'http://{get_config("address")}/redis/write'
         while True:
-            post_data = {
-                'host': self.IP,
-                'port': get_config('port'),
-                'status': self.status,
-                'tps': self.current_tps
-            }
-            res = self.request_post(url, {'data': ['jmeterServer_' + self.IP, json.dumps(post_data, ensure_ascii=False), 12]})
-            logger.info(f"Agent register successful, status code is {res.status_code}, status: {self.status}, TPS: {self.current_tps}")
+            try:
+                post_data = {
+                    'host': self.IP,
+                    'port': get_config('port'),
+                    'status': self.status,
+                    'tps': self.current_tps
+                }
+                res = self.request_post(url, {'data': ['jmeterServer_' + self.IP, json.dumps(post_data, ensure_ascii=False), 12]})
+                logger.info(f"Agent register successful, status code is {res.status_code}, status: {self.status}, TPS: {self.current_tps}")
+            except:
+                logger.error(traceback.format_exc())
             time.sleep(9)
 
     def check_status(self, is_run=True):
@@ -211,7 +214,7 @@ class Task(object):
                     self.start_thread(self.stop_task, ())
                     break
 
-                cur_position = f1.tell()  # 记录上次读取文件的位置
+                cur_position = f1.tell()  # record last position
                 if cur_position == position:
                     time.sleep(0.2)
                     continue
