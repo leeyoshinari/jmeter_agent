@@ -201,7 +201,7 @@ class Task(object):
                              'tags': {'task': str(self.task_id), 'host': self.IP},
                              'fields': {'c_time': c_time, 'samples': data[0], 'tps': data[1], 'avg_rt': data[2],
                                         'min_rt': data[3], 'max_rt': data[4], 'err': data[5], 'active': data[6]}}]
-                    post_data = {'num_key': self.task_id + '_host_*', 'data_key': self.task_key, 'redis': data, 'influx': lines}
+                    post_data = {'num_key': self.task_id + '_host_*', 'data_key': self.task_key, 'redis': data, 'influx': lines, 'task_id': self.task_id}
                     _ = self.request_post(self.data_write_url, post_data)
                     if res[-1] == '0':
                         self.start_thread(self.stop_task, ())
