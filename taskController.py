@@ -263,6 +263,7 @@ class Task(object):
             target_file_path = os.path.join(self.file_path, task_id)
             self.download_file_to_path(data.get('filePath'), local_file_path)
             self.unzip_file(local_file_path, target_file_path)
+            os.remove(local_file_path)
             if not os.path.exists(target_file_path):
                 logger.error('Not Found file after unzip')
                 return {'code': 1, 'msg': 'Not Found file after unzip'}
