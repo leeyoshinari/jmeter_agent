@@ -385,7 +385,7 @@ class Task(object):
             logger.debug(f"The result of request is {res.content.decode('unicode_escape')}")
             return res
         except:
-            raise
+            logger.error(traceback.format_exc())
 
     def request_get(self, url):
         try:
@@ -398,4 +398,4 @@ class Task(object):
                 logger.error(response['msg'])
                 return None
         except:
-            raise
+            logger.error(traceback.format_exc())
