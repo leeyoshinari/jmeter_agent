@@ -34,7 +34,7 @@ class Task(object):
         self.jmeter_path = os.path.join(self.deploy_path, 'JMeter')
         self.jmeter_executor = os.path.join(self.jmeter_path, 'bin', 'jmeter')
         self.setprop_path = os.path.join(self.jmeter_path, 'setprop.bsh')
-        self.file_path = os.path.join(self.deploy_path, 'jmeter_agent', 'results')
+        self.file_path = os.path.join(self.deploy_path, 'jmeter_files')
 
         self.check_env()
         self.write_setprop()
@@ -139,9 +139,9 @@ class Task(object):
     def check_status(self, is_run=True):
         try:
             res = os.popen('ps -ef|grep jmeter |grep -v grep').readlines()
-            if res and is_run:  # 是否启动成功
+            if res and is_run:  # whether is start
                 return True
-            elif not res and not is_run:    # 是否停止成功
+            elif not res and not is_run:    # whether is stop
                 return True
             else:
                 return False
@@ -151,7 +151,7 @@ class Task(object):
     def force_stop_test(self, duration, schedule, run_type):
         stop_time = self.start_time + duration
         if schedule == 1 and run_type == 1:
-            stop_time += 600
+            stop_time += 60
         while self.status == 1:
             if stop_time < time.time():
                 self.stop_task()
@@ -223,6 +223,9 @@ class Task(object):
                 else:
                     position = cur_position
                     time.sleep(0.2)
+            logger.info(f'{self.task_id} has been stopped ~')
+            if self.status > 0:
+                self.stop_task()
 
     def download_log(self, task_id):
         jtl_path = os.path.join(self.file_path, task_id, task_id + '.jtl')
