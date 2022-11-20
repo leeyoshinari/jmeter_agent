@@ -28,10 +28,6 @@ class Task(object):
         self.data_write_url = f'http://{get_config("address")}/jmeter/agent/write'
         self.redis_get_url = f'http://{get_config("address")}/redis/get/keys/'
         self.pattern = 'summary\+(\d+)in.*=(\d+.\d+)/sAvg:(\d+)Min:(\d+)Max:(\d+)Err:(\d+)\(.*Active:(\d+)Started'
-        self.redis_host = '127.0.0.1'
-        self.redis_port = 6379
-        self.redis_password = '123456'
-        self.redis_db = 0
         self.deploy_path = ''
         self.get_configure_from_server()
 
@@ -44,6 +40,14 @@ class Task(object):
         self.write_setprop()
         self.modify_properties()
         self.start_thread(self.register, ())
+
+    @property
+    def set_status(self):
+        return self.status
+
+    @set_status.setter
+    def set_status(self, value):
+        self.status = value
 
     def start_thread(self, func, data):
         t = threading.Thread(target=func, args=data)
@@ -107,10 +111,6 @@ class Task(object):
                 if res.status_code == 200:
                     response_data = json.loads(res.content.decode('unicode_escape'))
                     if response_data['code'] == 0:
-                        self.redis_host = response_data['data']['redis']['host']
-                        self.redis_port = response_data['data']['redis']['port']
-                        self.redis_password = response_data['data']['redis']['password']
-                        self.redis_db = response_data['data']['redis']['db']
                         self.deploy_path = response_data['data']['deploy_path']
                         break
 
@@ -204,14 +204,16 @@ class Task(object):
                     post_data = {'num_key': self.task_id + '_host_*', 'data_key': self.task_key, 'redis': data, 'influx': lines, 'task_id': self.task_id}
                     _ = self.request_post(self.data_write_url, post_data)
                     if res[-1] == '0':
-                        self.start_thread(self.stop_task, ())
+                        self.status = 0
+                        self.stop_task()
+                        break
                     last_time = time.time()
 
                 if time.time() - last_time > 300:
                     self.status = 0
 
                 if self.status == 0:
-                    self.start_thread(self.stop_task, ())
+                    self.stop_task()
                     break
 
                 cur_position = f1.tell()  # record last position
@@ -289,7 +291,7 @@ class Task(object):
                 self.start_time = time.time()
                 flag = 1
                 logger.info(f'{jmx_file_path} run successful, task id: {self.task_id}')
-                self.start_thread(self.parse_log, (os.path.join(self.file_path, self.task_id, self.task_id + '.log'),))
+                self.start_thread(self.parse_log, (log_path,))
                 if data.get('schedule') == 1 and data.get('type') == 1:
                     self.start_thread(self.auto_change_tps, (data.get('timeSetting'), data.get('targetNum'),))
                 self.start_thread(self.force_stop_test, (data.get('duration'), data.get('schedule'), data.get('type'),))

@@ -71,7 +71,8 @@ async def change_tps(request):
 async def stop_task(request):
     try:
         # task_id = request.match_info['task_id']
-        task.start_thread(task.stop_task, ())
+        # task.start_thread(task.stop_task, ())
+        task.set_status = 0
         return web.json_response({'code': 0, 'msg': 'Stop the Task successfully', 'data': None})
     except:
         logger.error(traceback.format_exc())
