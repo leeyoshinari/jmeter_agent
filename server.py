@@ -47,8 +47,8 @@ async def download_file(request):
     :return:
     """
     task_id = request.match_info['task_id']
-    res = task.download_log(task_id)
-    return web.Response(content_type='application/octet-stream', headers={'Content-Disposition': f'attachment;filename={task_id}.zip'}, body=res)
+    # res = task.download_log(task_id)
+    return web.Response(content_type='application/octet-stream', headers={'Content-Disposition': f'attachment;filename={task_id}.zip'}, body=task.download_log(task_id))
 
 
 async def change_tps(request):
