@@ -1,5 +1,5 @@
 # jmeter_agent
-It can only be used with [MyPlatform](https://github.com/leeyoshinari/MyPlatform.git), and can't be used alone.
+It can be only used with [MyPlatform](https://github.com/leeyoshinari/MyPlatform.git), and can't be used alone.
 
 ## Deploy
 1. Clone Repository
