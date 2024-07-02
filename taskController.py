@@ -102,6 +102,9 @@ class Task(object):
         _ = exec_cmd(f"sed -e 's/^M//g' {properties_path}")
         logger.info(f'Modify {properties_path} success ~')
 
+    def modify_host_to_jmx(self, file_path):
+        _ = exec_cmd(f"sed -i 's|.*<stringProp name=\"Argument.value\">WillBeReplaceToHost</stringProp>.*|<stringProp name=\"Argument.value\">{self.IP}</stringProp>|g' {file_path}")
+
     def get_configure_from_server(self):
         url = f'{get_config("address")}/register/first'
         post_data = {'type': 'jmeter-agent', 'host': self.IP, 'port': get_config('port')}
@@ -235,6 +238,7 @@ class Task(object):
                 logger.error('Not Found jmx file ~')
                 return {'code': 1, 'msg': 'Not Found jmx file, please zip file again ~'}
             jmx_file_path = os.path.join(target_file_path, jmx_files[0])
+            self.modify_host_to_jmx(jmx_file_path)
             log_path = os.path.join(target_file_path, task_id + '.log')
             jtl_file_path = os.path.join(target_file_path, task_id + '.jtl')
             if data.get('isDebug') == 1:
