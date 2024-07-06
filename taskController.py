@@ -304,7 +304,7 @@ class Task(object):
         for message in pubsub.listen():
             logger.info(f"Subscribe Message: {message}")
             if message['type'] == 'message':
-                data = json.loads(message['data'].decode('utf-8'))
+                data = json.loads(message['data'])
                 if self.IP in data['host']:
                     if data['cmd'] == 'startTask' and self.status != 1:
                         self.run_task(data)
