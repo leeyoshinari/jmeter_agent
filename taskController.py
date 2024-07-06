@@ -46,7 +46,7 @@ class Task(object):
         self.scheduler = BackgroundScheduler()
         self.scheduler.start()
         self.scheduler.add_job(self.register, 'interval', seconds=60, id='register_1')
-        self.task_subscribe()
+        self.start_thread(self.task_subscribe, ())
 
     @property
     def set_status(self):

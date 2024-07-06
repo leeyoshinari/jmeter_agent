@@ -32,7 +32,7 @@ async def download_file(request):
 async def main():
     app = web.Application()
 
-    # app.router.add_route('GET', '/', index)
+    app.router.add_route('GET', '/', index)
     app.router.add_route('GET', '/download/{task_id}', download_file)
 
     runner = web.AppRunner(app)
