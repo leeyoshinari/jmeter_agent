@@ -13,8 +13,6 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from common import get_config, logger, get_ip
 
 bean_shell_server_port = 15225
-scheduler = BackgroundScheduler()
-scheduler.start()
 
 
 class Task(object):
@@ -46,7 +44,9 @@ class Task(object):
         self.write_setprop()
         self.modify_properties()
         self.task_subscribe()
-        scheduler.add_job(self.register, 'interval', seconds=60, id='register_1')
+        self.scheduler = BackgroundScheduler()
+        self.scheduler.start()
+        self.scheduler.add_job(self.register, 'interval', seconds=60, id='register_1')
 
     @property
     def set_status(self):
@@ -249,14 +249,14 @@ class Task(object):
             logger.info(f'Run JMeter success, shell: {cmd}')
             time.sleep(5)
             if self.check_status(is_run=True):
-                scheduler.remove_job('register_1')
+                self.scheduler.remove_job('register_1')
                 self.status = 1
                 self.task_id = str(task_id)
                 self.number_samples = data.get('numberSamples')
                 self.start_time = time.time()
                 logger.info(f'{jmx_file_path} run successful, task id: {self.task_id}')
                 self.start_thread(self.parse_log, (log_path,))
-                scheduler.add_job(self.register, 'interval', seconds=5, id='register_1')
+                self.scheduler.add_job(self.register, 'interval', seconds=5, id='register_1')
                 self.send_message('run_task')
             else:
                 logger.error(f'{jmx_file_path} run failure, task id: {task_id}')
@@ -272,8 +272,8 @@ class Task(object):
                     self.status = 0
                     self.current_tps = 0
                     self.number_samples = 1
-                    scheduler.remove_job('register_1')
-                    scheduler.add_job(self.register, 'interval', seconds=60, id='register_1')
+                    self.scheduler.remove_job('register_1')
+                    self.scheduler.add_job(self.register, 'interval', seconds=60, id='register_1')
                     logger.info('Task stop successful ~')
                 else:
                     logger.error('Task stop failure ~')
@@ -301,6 +301,7 @@ class Task(object):
         pubsub = self.redis_client.pubsub()
         pubsub.subscribe(self.jmeter_message)
         for message in pubsub.listen():
+            logger.info(f"Subscribe Message: {message}")
             if message['type'] == 'message':
                 data = json.loads(message['data'].decode('utf-8'))
                 if self.IP in data['host']:
