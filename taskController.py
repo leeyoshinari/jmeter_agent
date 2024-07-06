@@ -9,7 +9,6 @@ import traceback
 import redis
 import requests
 import zipfile
-from apscheduler.schedulers.background import BackgroundScheduler
 from common import get_config, logger, get_ip
 
 bean_shell_server_port = 15225
@@ -44,9 +43,7 @@ class Task(object):
         self.write_setprop()
         self.modify_properties()
         self.task_subscribe()
-        self.scheduler = BackgroundScheduler()
-        self.scheduler.start()
-        self.scheduler.add_job(self.register, 'interval', seconds=60, id='register_1')
+        self.start_thread(self.register, ())
 
     @property
     def set_status(self):
@@ -58,6 +55,7 @@ class Task(object):
 
     def start_thread(self, func, data):
         t = threading.Thread(target=func, args=data)
+        t.deamon = True
         t.start()
 
     def check_env(self):
@@ -124,12 +122,14 @@ class Task(object):
             time.sleep(1)
 
     def register(self):
-        try:
-            data = {'host': self.IP, 'port': get_config('port'), 'status': self.status, 'tps': self.current_tps}
-            self.redis_client.set(name='jmeterServer_' + self.IP, value=json.dumps(data, ensure_ascii=False), ex=120)
-            logger.info(f"Agent register successful, TPS: {self.current_tps}")
-        except:
-            logger.error(traceback.format_exc())
+        while True:
+            try:
+                data = {'host': self.IP, 'port': get_config('port'), 'status': self.status, 'tps': self.current_tps}
+                self.redis_client.set(name='jmeterServer_' + self.IP, value=json.dumps(data, ensure_ascii=False), ex=12)
+                logger.info(f"Agent register successfully, TPS: {self.current_tps}")
+            except:
+                logger.error(traceback.format_exc())
+            time.sleep(10)
 
     @staticmethod
     def check_status(is_run=True):
@@ -249,14 +249,12 @@ class Task(object):
             logger.info(f'Run JMeter success, shell: {cmd}')
             time.sleep(5)
             if self.check_status(is_run=True):
-                self.scheduler.remove_job('register_1')
                 self.status = 1
                 self.task_id = str(task_id)
                 self.number_samples = data.get('numberSamples')
                 self.start_time = time.time()
                 logger.info(f'{jmx_file_path} run successful, task id: {self.task_id}')
                 self.start_thread(self.parse_log, (log_path,))
-                self.scheduler.add_job(self.register, 'interval', seconds=5, id='register_1')
                 self.send_message('run_task')
             else:
                 logger.error(f'{jmx_file_path} run failure, task id: {task_id}')
@@ -272,8 +270,6 @@ class Task(object):
                     self.status = 0
                     self.current_tps = 0
                     self.number_samples = 1
-                    self.scheduler.remove_job('register_1')
-                    self.scheduler.add_job(self.register, 'interval', seconds=60, id='register_1')
                     logger.info('Task stop successful ~')
                 else:
                     logger.error('Task stop failure ~')
