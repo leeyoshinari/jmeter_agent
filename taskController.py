@@ -96,6 +96,7 @@ class Task(object):
         # _ = exec_cmd(f"sed -i 's|.*summariser.interval.*|summariser.interval=10|g' {properties_path}")
         _ = exec_cmd(f"sed -i 's|.*beanshell.server.port.*|beanshell.server.port={bean_shell_server_port}|g' {properties_path}")
         _ = exec_cmd(f"sed -i 's|.*beanshell.server.file.*|beanshell.server.file=../extras/startup.bsh|g' {properties_path}")
+        _ = exec_cmd(f"sed -i 's|.*sampleresult.default.encoding.*|sampleresult.default.encoding=UTF-8|g' {properties_path}")
         _ = exec_cmd(f"sed -i 's|.*jmeter.save.saveservice.samplerData.*|jmeter.save.saveservice.samplerData=true|g' {properties_path}")
         _ = exec_cmd(f"sed -i 's|.*jmeter.save.saveservice.response_data.*|jmeter.save.saveservice.response_data=true|g' {properties_path}")
         _ = exec_cmd(f"sed -i 's|.*jmeter.save.saveservice.response_data.on_error.*|jmeter.save.saveservice.response_data.on_error=true|g' {properties_path}")
@@ -149,7 +150,7 @@ class Task(object):
         try:
             data = {'host': self.IP, 'taskId': self.task_id, 'type': task_type}
             self.redis_client.xadd(self.jmeter_message_stream, {'data': json.dumps(data, ensure_ascii=False)}, maxlen=5)
-            logger.debug(f"Send message successful, data: {data}")
+            logger.info(f"Send message successful, data: {data}")
         except:
             logger.error(traceback.format_exc())
 
@@ -163,6 +164,8 @@ class Task(object):
         with open(log_path, mode='r', encoding='utf-8') as f1:
             while True:
                 line = f1.readline()
+                if 'Summariser:' in line and '+' in line:
+                    self.current_tps = float(line.split('=')[-1].split('/s')[0].strip())
                 if 'o.a.j.v.b.BackendListener:' in line and 'Worker ended' in line:
                     self.status = 0
                     self.stop_task()
