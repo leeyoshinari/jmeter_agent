@@ -183,12 +183,12 @@ class Task(object):
 
                 cur_position = f1.tell()  # record last position
                 if cur_position == position:
-                    time.sleep(2)
+                    time.sleep(0.2)
                     continue
                 else:
                     position = cur_position
                     last_time = time.time()
-                    time.sleep(2)
+                    time.sleep(0.2)
             logger.info(f'{self.task_id} has been stopped ~')
             if self.status > 0:
                 self.stop_task()
