@@ -133,6 +133,12 @@ class Task(object):
         except:
             logger.error(traceback.format_exc())
 
+    def register_host_num(self):
+        try:
+            self.redis_client.set(name=f'task_{self.task_id}_{self.IP}', value='1', ex=3)
+        except:
+            logger.error(traceback.format_exc())
+
     @staticmethod
     def check_status(is_run=True):
         try:
@@ -261,6 +267,7 @@ class Task(object):
                 logger.info(f'{jmx_file_path} run successful, task id: {self.task_id}')
                 self.start_thread(self.parse_log, (log_path,))
                 self.scheduler.add_job(self.register, 'interval', seconds=5, id='register_1')
+                self.scheduler.add_job(self.register_host_num, 'interval', seconds=2, id='register_host')
                 self.send_message('run_task')
             else:
                 logger.error(f'{jmx_file_path} run failure, task id: {task_id}')
@@ -278,6 +285,10 @@ class Task(object):
                     self.number_samples = 1
                     self.scheduler.remove_job('register_1')
                     self.scheduler.add_job(self.register, 'interval', seconds=60, id='register_1')
+                    jobs = self.scheduler.get_jobs()
+                    register_host = [job.id for job in jobs if job.id == 'register_host']
+                    if register_host:
+                        self.scheduler.remove_job('register_host')
                     logger.info('Task stop successful ~')
                 else:
                     logger.error('Task stop failure ~')
@@ -289,6 +300,10 @@ class Task(object):
             self.status = 0
             self.current_tps = 0
             self.number_samples = 1
+            jobs = self.scheduler.get_jobs()
+            register_host = [job.id for job in jobs if job.id == 'register_host']
+            if register_host:
+                self.scheduler.remove_job('register_host')
             logger.error('Task has stopped ~')
 
         self.send_message('stop_task')
