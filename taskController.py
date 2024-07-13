@@ -187,6 +187,8 @@ class Task(object):
                     self.stop_task()
                     break
 
+                if self.status == 0: break
+
                 cur_position = f1.tell()  # record last position
                 if cur_position == position:
                     time.sleep(0.2)
@@ -304,7 +306,7 @@ class Task(object):
             register_host = [job.id for job in jobs if job.id == 'register_host']
             if register_host:
                 self.scheduler.remove_job('register_host')
-            logger.error('Task has stopped ~')
+            logger.info('Task has stopped ~')
 
         self.send_message('stop_task')
 
