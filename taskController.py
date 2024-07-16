@@ -19,6 +19,7 @@ class Task(object):
     def __init__(self):
         self.IP = get_ip()
         self.status = 0     # 0 idle, 1 busy, -1 pending
+        self.is_perf = 1
         self.current_tps = 0
         self.task_id = None
         self.plan_id = None
@@ -37,16 +38,18 @@ class Task(object):
         self.jmeter_executor = os.path.join(self.jmeter_path, 'bin', 'jmeter')
         self.setprop_path = os.path.join(self.jmeter_path, 'setprop.bsh')
         self.file_path = os.path.join(self.deploy_path, 'jmeter_files')
-        self.redis_client = redis.StrictRedis(host=self.redis_host, port=self.redis_port, password=self.redis_password,
-                                              db=self.redis_db, decode_responses=True)
 
-        self.check_env()
-        self.write_setprop()
-        self.modify_properties()
-        self.scheduler = BackgroundScheduler()
-        self.scheduler.start()
-        self.scheduler.add_job(self.register, 'interval', seconds=60, id='register_1')
-        self.start_thread(self.task_subscribe, ())
+        if self.is_perf:
+            self.redis_client = redis.StrictRedis(host=self.redis_host, port=self.redis_port, password=self.redis_password,
+                                                  db=self.redis_db, decode_responses=True)
+            self.check_env()
+            self.write_setprop()
+            self.modify_properties()
+            self.scheduler = BackgroundScheduler()
+            self.scheduler.start()
+            self.register()
+            self.scheduler.add_job(self.register, 'interval', seconds=60, id='register_1')
+            self.start_thread(self.task_subscribe, ())
 
     @property
     def set_status(self):
@@ -117,9 +120,10 @@ class Task(object):
                 self.redis_port = res['redis']['port']
                 self.redis_password = res['redis']['password']
                 self.redis_db = res['redis']['db']
-                self.jmeter_message = res['jmeter_message']
-                self.jmeter_message_stream = res['jmeter_message_stream']
-                self.deploy_path = res['deploy_path']
+                self.jmeter_message = res['performance']['jmeter_message']
+                self.jmeter_message_stream = res['performance']['jmeter_message_stream']
+                self.is_perf = res['performance']['is_perf']
+                self.deploy_path = res['performance']['deploy_path']
                 break
             except:
                 logger.error(traceback.format_exc())
@@ -182,7 +186,7 @@ class Task(object):
                     self.stop_task()
                     break
 
-                if time.time() - last_time > 120:
+                if time.time() - last_time > 180:
                     self.status = 0
                     self.stop_task()
                     break

@@ -33,7 +33,8 @@ async def main():
     app = web.Application()
 
     app.router.add_route('GET', '/', index)
-    app.router.add_route('GET', '/download/{task_id}', download_file)
+    if task.is_perf:
+        app.router.add_route('GET', '/download/{task_id}', download_file)
 
     runner = web.AppRunner(app)
     await runner.setup()
