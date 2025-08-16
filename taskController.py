@@ -23,7 +23,6 @@ class Task(object):
         self.current_tps = 0
         self.task_id = None
         self.plan_id = None
-        self.number_samples = 1
         self.start_time = 0
         self.redis_host = '127.0.0.1'
         self.redis_port = 6379
@@ -268,7 +267,6 @@ class Task(object):
                 self.scheduler.remove_job('register_1')
                 self.status = 1
                 self.task_id = str(task_id)
-                self.number_samples = data.get('numberSamples')
                 self.start_time = time.time()
                 logger.info(f'{jmx_file_path} run successful, task id: {self.task_id}')
                 self.start_thread(self.parse_log, (log_path,))
@@ -288,7 +286,6 @@ class Task(object):
                 if self.check_status(is_run=False):
                     self.status = 0
                     self.current_tps = 0
-                    self.number_samples = 1
                     self.scheduler.remove_job('register_1')
                     self.scheduler.add_job(self.register, 'interval', seconds=60, id='register_1')
                     jobs = self.scheduler.get_jobs()
@@ -305,7 +302,6 @@ class Task(object):
         else:
             self.status = 0
             self.current_tps = 0
-            self.number_samples = 1
             jobs = self.scheduler.get_jobs()
             register_host = [job.id for job in jobs if job.id == 'register_host']
             if register_host:
